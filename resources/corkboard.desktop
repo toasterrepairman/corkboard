@@ -1,0 +1,21 @@
+[Desktop Entry]
+##  The name of the application ##
+Name=Corkboard
+GenericName=Code clip app
+
+## A comment which act as a tooltip ##
+Comment=Clip, save and search code snippets using embeddings
+
+## The executable of the application with optional args ##
+## You can state full path too ##
+Exec=corkboard
+
+## State the name of the icon that will be used to display this entry ##
+## Icon=icon-corkboard
+
+## Is it a terminal app? For example htop will be set as Terminal=True ##
+## Then default terminal app will be used to open the 'htop' ##
+Terminal=false
+
+##  The type as listed  ##
+Type=Application
