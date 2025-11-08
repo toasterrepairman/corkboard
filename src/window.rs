@@ -106,6 +106,14 @@ impl Window {
             source_buffer.set_style_scheme(Some(&scheme));
         }
 
+        // Get the gutter and set background color programmatically
+        use sourceview5::prelude::ViewExt as SvViewExt;
+        let gutter = SvViewExt::gutter(&source_view, gtk::TextWindowType::Left);
+        // Apply CSS to the gutter widget
+        let gutter_css = gtk::CssProvider::new();
+        gutter_css.load_from_data("* { background-color: shade(@view_bg_color, 0.90); }");
+        gutter.style_context().add_provider(&gutter_css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
         // Override SourceView background to use system background color
         let css_provider = gtk::CssProvider::new();
         css_provider.load_from_data(
@@ -275,7 +283,7 @@ impl Window {
         }
     }
 
-    fn create_snippet_row(&self, snippet: &Snippet, index: usize) -> gtk::ListBoxRow {
+    fn create_snippet_row(&self, snippet: &Snippet, _index: usize) -> gtk::ListBoxRow {
         let row = gtk::ListBoxRow::new();
 
         let box_ = gtk::Box::builder()
