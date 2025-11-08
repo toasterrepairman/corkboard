@@ -1,10 +1,13 @@
-use crate::snippet::{load_snippets, Snippet, SnippetList};
+use crate::snippet::{load_snippets, save_snippets, Snippet, SnippetList};
+use crate::embeddings::{EmbeddingsStore, generate_embedding, search_snippets};
 use gtk::prelude::*;
 use gtk::{gio, gdk, glib};
 use libadwaita as adw;
 use libadwaita::prelude::*;
 use sourceview5 as sv;
 use sourceview5::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 pub struct Window {
     window: adw::ApplicationWindow,
@@ -12,11 +15,15 @@ pub struct Window {
     list_box: gtk::ListBox,
     source_view: sv::View,
     split_view: adw::OverlaySplitView,
+    embeddings_store: Rc<RefCell<EmbeddingsStore>>,
+    search_bar: gtk::SearchBar,
+    search_entry: gtk::SearchEntry,
 }
 
 impl Window {
     pub fn new(app: &adw::Application) -> Self {
         let snippets = load_snippets();
+        let embeddings_store = Rc::new(RefCell::new(EmbeddingsStore::load()));
 
         // Create main window
         let window = adw::ApplicationWindow::builder()
@@ -67,6 +74,17 @@ impl Window {
             .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
             .build();
 
+        // Create search bar and entry
+        let search_entry = gtk::SearchEntry::builder()
+            .placeholder_text("Search snippets...")
+            .hexpand(true)
+            .build();
+
+        let search_bar = gtk::SearchBar::builder()
+            .search_mode_enabled(false)
+            .child(&search_entry)
+            .build();
+
         // Create sidebar with list of snippets
         let scrolled_sidebar = gtk::ScrolledWindow::builder()
             .vexpand(true)
@@ -80,7 +98,15 @@ impl Window {
 
         scrolled_sidebar.set_child(Some(&list_box));
 
-        split_view.set_sidebar(Some(&scrolled_sidebar));
+        // Create sidebar container with search bar
+        let sidebar_box = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .build();
+
+        sidebar_box.append(&search_bar);
+        sidebar_box.append(&scrolled_sidebar);
+
+        split_view.set_sidebar(Some(&sidebar_box));
 
         // Create content area with SourceView
         let content_box = gtk::Box::builder()
@@ -170,6 +196,9 @@ impl Window {
             list_box,
             source_view,
             split_view: split_view.clone(),
+            embeddings_store,
+            search_bar: search_bar.clone(),
+            search_entry: search_entry.clone(),
         };
 
         // Populate the list
@@ -177,6 +206,12 @@ impl Window {
 
         // Setup keyboard accelerators
         win.setup_actions(app);
+
+        // Setup search functionality
+        win.setup_search();
+
+        // Generate missing embeddings on startup
+        win.generate_missing_embeddings();
 
         // Connect copy button
         let source_view_clone = win.source_view.clone();
@@ -198,6 +233,7 @@ impl Window {
         let list_box_clone = win.list_box.clone();
         let source_view_clone = win.source_view.clone();
         let window_clone = win.window.clone();
+        let embeddings_store_clone = win.embeddings_store.clone();
 
         add_button.connect_clicked(move |_| {
             // Present dialog and wait for result
@@ -208,6 +244,7 @@ impl Window {
                 &snippets_clone,
                 &list_box_clone,
                 &source_view_clone,
+                &embeddings_store_clone,
             );
         });
 
@@ -247,6 +284,7 @@ impl Window {
         let snippets_clone = self.snippets.clone();
         let list_box_clone = self.list_box.clone();
         let source_view_clone = self.source_view.clone();
+        let embeddings_store_clone = self.embeddings_store.clone();
 
         add_action.connect_activate(move |_, _| {
             Self::show_add_dialog(
@@ -254,6 +292,7 @@ impl Window {
                 &snippets_clone,
                 &list_box_clone,
                 &source_view_clone,
+                &embeddings_store_clone,
             );
         });
 
@@ -270,6 +309,112 @@ impl Window {
 
         self.window.add_action(&close_action);
         app.set_accels_for_action("win.close", &["<Ctrl>q"]);
+
+        // Create action for toggling search (Ctrl+F)
+        let search_action = gio::SimpleAction::new("toggle-search", None);
+        let search_bar_clone = self.search_bar.clone();
+        let search_entry_clone = self.search_entry.clone();
+
+        search_action.connect_activate(move |_, _| {
+            let current_mode = search_bar_clone.is_search_mode();
+            search_bar_clone.set_search_mode(!current_mode);
+
+            if !current_mode {
+                // Focus the search entry when opening
+                search_entry_clone.grab_focus();
+            }
+        });
+
+        self.window.add_action(&search_action);
+        app.set_accels_for_action("win.toggle-search", &["<Ctrl>f"]);
+    }
+
+    fn setup_search(&self) {
+        let search_entry = self.search_entry.clone();
+        let list_box = self.list_box.clone();
+        let snippets = self.snippets.clone();
+        let embeddings_store = self.embeddings_store.clone();
+
+        // Connect to search entry's search-changed signal
+        search_entry.connect_search_changed(move |entry| {
+            let query = entry.text().to_string();
+
+            if query.is_empty() {
+                // Show all items when search is empty
+                list_box.set_filter_func(|_| true);
+            } else {
+                // Perform async search using embeddings
+                let query_clone = query.clone();
+                let embeddings_store_clone = embeddings_store.clone();
+                let snippets_clone = snippets.clone();
+                let list_box_clone = list_box.clone();
+
+                glib::MainContext::default().spawn_local(async move {
+                    // Perform the search
+                    if let Ok(results) = search_snippets(&query_clone, &embeddings_store_clone.borrow()).await {
+                        // Create a set of matching IDs with scores above threshold
+                        let matching_ids: std::collections::HashMap<String, f32> = results
+                            .into_iter()
+                            .filter(|(_, score)| *score > 0.3) // Threshold for relevance
+                            .collect();
+
+                        // Filter the list box based on matching IDs
+                        list_box_clone.set_filter_func(move |row| {
+                            let index = row.index() as usize;
+                            let snippets = snippets_clone.borrow();
+
+                            if let Some(snippet) = snippets.get(index) {
+                                matching_ids.contains_key(&snippet.id)
+                            } else {
+                                false
+                            }
+                        });
+                    }
+                });
+            }
+        });
+    }
+
+    fn generate_missing_embeddings(&self) {
+        let snippets = self.snippets.clone();
+        let embeddings_store = self.embeddings_store.clone();
+
+        // Delay embedding generation to not block UI startup
+        glib::timeout_add_seconds_local(2, move || {
+            let snippets_clone = snippets.clone();
+            let embeddings_store_clone = embeddings_store.clone();
+
+            glib::MainContext::default().spawn_local(async move {
+                let snippets_list = snippets_clone.borrow().clone();
+
+                for snippet in snippets_list.iter() {
+                    // Check if embedding already exists
+                    let has_embedding = embeddings_store_clone.borrow().get_embedding(&snippet.id).is_some();
+
+                    if !has_embedding {
+                        // Generate embedding for this snippet
+                        let text = snippet.get_searchable_text();
+
+                        match generate_embedding(&text).await {
+                            Ok(embedding) => {
+                                embeddings_store_clone.borrow_mut().set_embedding(snippet.id.clone(), embedding);
+                                println!("Generated embedding for snippet: {}", snippet.title);
+                            }
+                            Err(e) => {
+                                eprintln!("Failed to generate embedding for {}: {}", snippet.title, e);
+                            }
+                        }
+                    }
+                }
+
+                // Save embeddings to disk
+                if let Err(e) = embeddings_store_clone.borrow().save() {
+                    eprintln!("Failed to save embeddings: {}", e);
+                }
+            });
+
+            glib::ControlFlow::Break
+        });
     }
 
     fn populate_list(&mut self) {
@@ -348,6 +493,11 @@ impl Window {
                 // Remove from data
                 snippets_clone2.borrow_mut().remove(index);
 
+                // Save to disk
+                if let Err(e) = save_snippets(&snippets_clone2.borrow()) {
+                    eprintln!("Failed to save snippets: {}", e);
+                }
+
                 // Remove from UI
                 list_box_clone2.remove(&row_clone);
 
@@ -392,6 +542,7 @@ impl Window {
         snippets: &SnippetList,
         list_box: &gtk::ListBox,
         source_view: &sv::View,
+        embeddings_store: &Rc<RefCell<EmbeddingsStore>>,
     ) {
         let dialog = adw::Dialog::builder()
             .title("Add Code Snippet")
@@ -500,6 +651,7 @@ impl Window {
         let title_entry_clone = title_entry.clone();
         let language_entry_clone = language_entry.clone();
         let dialog_source_view_clone = dialog_source_view.clone();
+        let embeddings_store_clone = embeddings_store.clone();
 
         add_button.connect_clicked(move |_| {
             let title = title_entry_clone.text().to_string();
@@ -519,6 +671,11 @@ impl Window {
                 // Add to list
                 snippets_clone.borrow_mut().push(snippet.clone());
 
+                // Save to disk
+                if let Err(e) = save_snippets(&snippets_clone.borrow()) {
+                    eprintln!("Failed to save snippets: {}", e);
+                }
+
                 // Create and add row
                 let row = Self::create_snippet_row_static(
                     &snippet,
@@ -534,6 +691,25 @@ impl Window {
                     list_box_clone.select_row(Some(&new_row));
                     Self::display_snippet(&source_view_clone, &snippet);
                 }
+
+                // Generate embedding for the new snippet asynchronously
+                let snippet_clone = snippet.clone();
+                let embeddings_store_clone2 = embeddings_store_clone.clone();
+                glib::MainContext::default().spawn_local(async move {
+                    let text = snippet_clone.get_searchable_text();
+                    match generate_embedding(&text).await {
+                        Ok(embedding) => {
+                            embeddings_store_clone2.borrow_mut().set_embedding(snippet_clone.id.clone(), embedding);
+                            if let Err(e) = embeddings_store_clone2.borrow().save() {
+                                eprintln!("Failed to save embeddings: {}", e);
+                            }
+                            println!("Generated embedding for new snippet: {}", snippet_clone.title);
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to generate embedding for new snippet: {}", e);
+                        }
+                    }
+                });
 
                 dialog_clone.close();
             }
@@ -626,6 +802,11 @@ impl Window {
 
                 // Remove from data
                 snippets_clone2.borrow_mut().remove(index);
+
+                // Save to disk
+                if let Err(e) = save_snippets(&snippets_clone2.borrow()) {
+                    eprintln!("Failed to save snippets: {}", e);
+                }
 
                 // Remove from UI
                 list_box_clone2.remove(&row_clone);

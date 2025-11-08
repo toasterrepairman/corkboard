@@ -1,6 +1,7 @@
 mod snippet;
 mod snippet_dialog;
 mod window;
+mod embeddings;
 
 use gtk::prelude::*;
 use libadwaita as adw;
