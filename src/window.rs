@@ -28,7 +28,7 @@ impl Window {
         // Create main window
         let window = adw::ApplicationWindow::builder()
             .application(app)
-            .title("Corkboard - Code Snippets")
+            .title("Corkboard")
             .default_width(1000)
             .default_height(700)
             .build();
