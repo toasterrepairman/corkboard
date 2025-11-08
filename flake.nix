@@ -57,7 +57,7 @@
 
         postInstall = ''
             # Install desktop file
-            install -Dm644 resources/corkboard.desktop $out/share/applications/com.github.scrutinize.desktop
+            install -Dm644 resources/corkboard.desktop $out/share/applications/corkboard.desktop
 
             # Install MIME type definition
             # install -Dm644 resources/corkboard-mimetypes.xml $out/share/mime/packages/scrutinize.xml
