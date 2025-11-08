@@ -11,6 +11,7 @@ pub struct Window {
     snippets: SnippetList,
     list_box: gtk::ListBox,
     source_view: sv::View,
+    split_view: adw::OverlaySplitView,
 }
 
 impl Window {
@@ -136,14 +137,9 @@ impl Window {
             .hexpand(true)
             .build();
 
-        let clamp = adw::Clamp::builder()
-            .maximum_size(1200)
-            .child(&scrolled_content)
-            .build();
-
         // Create overlay for floating copy button
         let overlay = gtk::Overlay::new();
-        overlay.set_child(Some(&clamp));
+        overlay.set_child(Some(&scrolled_content));
 
         // Create floating copy button
         let copy_button = gtk::Button::builder()
@@ -173,6 +169,7 @@ impl Window {
             snippets,
             list_box,
             source_view,
+            split_view: split_view.clone(),
         };
 
         // Populate the list
@@ -217,6 +214,7 @@ impl Window {
         // Connect list selection
         let snippets_clone = win.snippets.clone();
         let source_view_clone = win.source_view.clone();
+        let split_view_clone = win.split_view.clone();
 
         win.list_box.connect_row_selected(move |_, row| {
             if let Some(row) = row {
@@ -225,6 +223,11 @@ impl Window {
 
                 if let Some(snippet) = snippets.get(index) {
                     Self::display_snippet(&source_view_clone, snippet);
+
+                    // Auto-hide sidebar if in collapsed/overlay mode for better UX
+                    if split_view_clone.is_collapsed() {
+                        split_view_clone.set_show_sidebar(false);
+                    }
                 }
             }
         });
