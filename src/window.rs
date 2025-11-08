@@ -1,6 +1,6 @@
 use crate::snippet::{load_snippets, Snippet, SnippetList};
 use gtk::prelude::*;
-use gtk::{gio, gdk};
+use gtk::{gio, gdk, glib};
 use libadwaita as adw;
 use libadwaita::prelude::*;
 use sourceview5 as sv;
@@ -28,6 +28,15 @@ impl Window {
         // Create header bar
         let header_bar = adw::HeaderBar::new();
 
+        // Sidebar toggle button
+        let sidebar_toggle = gtk::ToggleButton::builder()
+            .icon_name("sidebar-show-symbolic")
+            .tooltip_text("Toggle Sidebar")
+            .active(true)
+            .build();
+
+        header_bar.pack_start(&sidebar_toggle);
+
         // Add button
         let add_button = gtk::Button::builder()
             .icon_name("list-add-symbolic")
@@ -36,12 +45,25 @@ impl Window {
 
         header_bar.pack_end(&add_button);
 
-        // Create split view
+        // Create split view with auto-collapse behavior
         let split_view = adw::OverlaySplitView::builder()
             .sidebar_position(gtk::PackType::Start)
             .show_sidebar(true)
             .min_sidebar_width(250.0)
             .max_sidebar_width(400.0)
+            .enable_show_gesture(true)
+            .enable_hide_gesture(true)
+            .build();
+
+        // Auto-collapse sidebar when window width is below threshold
+        let breakpoint = adw::Breakpoint::new(adw::BreakpointCondition::parse("max-width: 800px").unwrap());
+        breakpoint.add_setter(&split_view, "collapsed", Some(&true.to_value()));
+        window.add_breakpoint(breakpoint);
+
+        // Bind sidebar toggle button to split view's show_sidebar property
+        split_view
+            .bind_property("show-sidebar", &sidebar_toggle, "active")
+            .flags(glib::BindingFlags::BIDIRECTIONAL | glib::BindingFlags::SYNC_CREATE)
             .build();
 
         // Create sidebar with list of snippets

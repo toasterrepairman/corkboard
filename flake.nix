@@ -39,7 +39,6 @@
         git
         wrapGAppsHook4
         libsecret
-        source
       ];
 
       rustPlatform = pkgs.makeRustPlatform {
