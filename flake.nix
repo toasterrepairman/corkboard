@@ -57,16 +57,12 @@
 
         postInstall = ''
             # Install desktop file
-            install -Dm644 resources/com.github.corkboard.desktop $out/share/applications/com.github.scrutinize.desktop
+            # install -Dm644 resources/com.github.corkboard.desktop $out/share/applications/com.github.scrutinize.desktop
 
             # Install MIME type definition
-            install -Dm644 resources/corkboard-mimetypes.xml $out/share/mime/packages/scrutinize.xml
+            # install -Dm644 resources/corkboard-mimetypes.xml $out/share/mime/packages/scrutinize.xml
 
-            install -Dt $out/share/icons resources/icon-corkboard.png
-
-            # Update MIME and desktop databases
-            ${pkgs.shared-mime-info}/bin/update-mime-database $out/share/mime
-            ${pkgs.desktop-file-utils}/bin/update-desktop-database $out/share/applications
+            # install -Dt $out/share/icons resources/icon-corkboard.png
         '';
       };
 
