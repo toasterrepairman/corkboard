@@ -127,6 +127,14 @@ impl Window {
             .right_margin(12)
             .build();
 
+        // Ensure monospace font by setting CSS
+        source_view.add_css_class("monospace");
+
+        // Apply monospace font family via CSS
+        let font_css = gtk::CssProvider::new();
+        font_css.load_from_data("textview.monospace { font-family: monospace; font-size: 11pt; }");
+        source_view.style_context().add_provider(&font_css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
         // Enable syntax highlighting with Classic theme
         let scheme_manager = sv::StyleSchemeManager::default();
         if let Some(scheme) = scheme_manager.scheme("Adwaita-dark") {
@@ -576,6 +584,14 @@ impl Window {
             .vexpand(true)
             .hexpand(true)
             .build();
+
+        // Ensure monospace font by setting CSS
+        dialog_source_view.add_css_class("monospace");
+
+        // Apply monospace font family via CSS
+        let font_css = gtk::CssProvider::new();
+        font_css.load_from_data("textview.monospace { font-family: monospace; font-size: 11pt; }");
+        dialog_source_view.style_context().add_provider(&font_css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
 
         // Enable syntax highlighting
         let scheme_manager = sv::StyleSchemeManager::default();
