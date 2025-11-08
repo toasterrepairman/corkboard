@@ -48,7 +48,7 @@ impl SnippetDialog {
 
         // Enable syntax highlighting
         let scheme_manager = sv::StyleSchemeManager::default();
-        if let Some(scheme) = scheme_manager.scheme("Adwaita-dark") {
+        if let Some(scheme) = scheme_manager.scheme("classic") {
             source_buffer.set_style_scheme(Some(&scheme));
         }
 

@@ -100,11 +100,27 @@ impl Window {
             .right_margin(12)
             .build();
 
-        // Enable syntax highlighting with dark theme
+        // Enable syntax highlighting with Classic theme
         let scheme_manager = sv::StyleSchemeManager::default();
         if let Some(scheme) = scheme_manager.scheme("Adwaita-dark") {
             source_buffer.set_style_scheme(Some(&scheme));
         }
+
+        // Override SourceView background to use system background color
+        let css_provider = gtk::CssProvider::new();
+        css_provider.load_from_data(
+            "textview.view, textview.view > text { background-color: @view_bg_color; background-image: none; }"
+        );
+        if let Some(display) = gdk::Display::default() {
+            gtk::style_context_add_provider_for_display(
+                &display,
+                &css_provider,
+                gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+            );
+        }
+
+        // Disable background pattern
+        source_view.set_background_pattern(sv::BackgroundPatternType::None);
 
         let scrolled_content = gtk::ScrolledWindow::builder()
             .child(&source_view)
@@ -117,7 +133,23 @@ impl Window {
             .child(&scrolled_content)
             .build();
 
-        content_box.append(&clamp);
+        // Create overlay for floating copy button
+        let overlay = gtk::Overlay::new();
+        overlay.set_child(Some(&clamp));
+
+        // Create floating copy button
+        let copy_button = gtk::Button::builder()
+            .label("Copy")
+            .icon_name("edit-copy-symbolic")
+            .css_classes(vec!["pill", "accent"])
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::End)
+            .margin_bottom(24)
+            .build();
+
+        overlay.add_overlay(&copy_button);
+
+        content_box.append(&overlay);
 
         split_view.set_content(Some(&content_box));
 
@@ -140,6 +172,21 @@ impl Window {
 
         // Setup keyboard accelerators
         win.setup_actions(app);
+
+        // Connect copy button
+        let source_view_clone = win.source_view.clone();
+        copy_button.connect_clicked(move |_| {
+            if let Some(buffer) = source_view_clone.buffer().downcast_ref::<sv::Buffer>() {
+                let start = buffer.start_iter();
+                let end = buffer.end_iter();
+                let text = buffer.text(&start, &end, false);
+
+                if let Some(display) = gdk::Display::default() {
+                    let clipboard = display.clipboard();
+                    clipboard.set_text(&text);
+                }
+            }
+        });
 
         // Connect add button
         let snippets_clone = win.snippets.clone();
@@ -373,6 +420,9 @@ impl Window {
         if let Some(scheme) = scheme_manager.scheme("Adwaita-dark") {
             source_buffer.set_style_scheme(Some(&scheme));
         }
+
+        // Disable background pattern
+        dialog_source_view.set_background_pattern(sv::BackgroundPatternType::None);
 
         // Wrap SourceView in a scrolled window
         let scrolled_window = gtk::ScrolledWindow::builder()
