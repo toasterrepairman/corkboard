@@ -185,6 +185,11 @@ impl Window {
             .margin_bottom(24)
             .build();
 
+        // Add outline to the pill button with accent color
+        let button_css = gtk::CssProvider::new();
+        button_css.load_from_data("button.pill.accent { outline: 2px solid @accent_bg_color; outline-offset: 0px; }");
+        copy_button.style_context().add_provider(&button_css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
         overlay.add_overlay(&copy_button);
 
         content_box.append(&overlay);
