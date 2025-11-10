@@ -607,6 +607,15 @@ impl Window {
         // Disable background pattern
         dialog_source_view.set_background_pattern(sv::BackgroundPatternType::None);
 
+        // Get the gutter and set background color programmatically
+        use sourceview5::prelude::ViewExt as SvViewExt;
+        let gutter = SvViewExt::gutter(&dialog_source_view, gtk::TextWindowType::Left);
+
+        // Apply CSS to the gutter widget
+        let gutter_css = gtk::CssProvider::new();
+        gutter_css.load_from_data("* { background-color: shade(@view_bg_color, 0.90); }");
+        gutter.style_context().add_provider(&gutter_css, gtk::STYLE_PROVIDER_PRIORITY_APPLICATION);
+
         // Wrap SourceView in a scrolled window
         let scrolled_window = gtk::ScrolledWindow::builder()
             .child(&dialog_source_view)
