@@ -1,10 +1,10 @@
 # Corkboard
 
-![corkboard icon](/resources/corkboard-icon.png)
+![corkboard icon](resources/icon-corkboard.png)
 
 ## A simple code snippet app with semantic search
 
-![corkboard screenshot](/resources/corkboard-screenshot.png)
+![corkboard screenshot](resources/corkboard-screenshot.png)
 
 ## install
 
