@@ -11,7 +11,7 @@ Comment=Clip, save and search code snippets using embeddings
 Exec=corkboard
 
 ## State the name of the icon that will be used to display this entry ##
-## Icon=icon-corkboard
+Icon=icon-corkboard
 
 ## Is it a terminal app? For example htop will be set as Terminal=True ##
 ## Then default terminal app will be used to open the 'htop' ##
